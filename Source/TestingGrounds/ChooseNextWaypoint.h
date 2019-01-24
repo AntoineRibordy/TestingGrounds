@@ -25,11 +25,11 @@ protected:
 	struct FBlackboardKeySelector WaypointKey;
 
 private:
-	void GetPatrolPoints(UBehaviorTreeComponent& OwnerComp);
-	void SetNextWaypoint();
+	bool GetPatrolPoints(UBehaviorTreeComponent& OwnerComp);
+	bool SetNextWaypoint();
 	void CycleIndex();
 
-	TArray<AActor*> PatrolPointsCPP;
+	TArray<AActor*> PatrolPoints;
 	int32 Index;
 	UBlackboardComponent* BlackboardComp;
 };

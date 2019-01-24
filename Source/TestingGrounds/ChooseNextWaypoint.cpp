@@ -2,41 +2,52 @@
 
 #include "ChooseNextWaypoint.h"
 #include "BehaviorTree/BlackboardComponent.h"
-#include "PatrollingGuard.h" // TODO remove coupling
 #include "AIController.h"
+#include "PatrolRoute.h"
 
 EBTNodeResult::Type UChooseNextWaypoint::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	BlackboardComp = OwnerComp.GetBlackboardComponent();
 	Index = BlackboardComp->GetValueAsInt(IndexKey.SelectedKeyName);
 	//UE_LOG(LogTemp, Warning, TEXT("Waypoint index: %i"), Index);
-	GetPatrolPoints(OwnerComp);
-	SetNextWaypoint();
-	CycleIndex();
-	return EBTNodeResult::Succeeded;
+	if (GetPatrolPoints(OwnerComp))
+	{
+		if (SetNextWaypoint())
+		{
+			CycleIndex();
+			return EBTNodeResult::Succeeded;
+		}
+	}
+	return EBTNodeResult::Failed;
 }
 
-void UChooseNextWaypoint::GetPatrolPoints(UBehaviorTreeComponent& OwnerComp)
+bool UChooseNextWaypoint::GetPatrolPoints(UBehaviorTreeComponent& OwnerComp)
 {
 	// Get controlled pawn from AIController
-	auto AIController = OwnerComp.GetAIOwner();
-	auto ControlledPawn = AIController->GetPawn();
+	auto ControlledPawn = OwnerComp.GetAIOwner()->GetPawn();
+	auto PatrolRoute = ControlledPawn->FindComponentByClass<UPatrolRoute>();
 	// Get patrolpoints from AI pawn and store them
-	PatrolPointsCPP = Cast<APatrollingGuard>(ControlledPawn)->PatrolPointsCPP;
+	if (!ensure(PatrolRoute)) { return false; }
+	PatrolPoints = PatrolRoute->GetPatrolPoints();
+	return true;
 }
 
-void UChooseNextWaypoint::SetNextWaypoint()
+bool UChooseNextWaypoint::SetNextWaypoint()
 {
 	// Set the next waypoint in the blackboard
-	BlackboardComp->SetValueAsObject(WaypointKey.SelectedKeyName, PatrolPointsCPP[Index]);
+	if (PatrolPoints.Num() == 0) 
+	{ 
+		UE_LOG(LogTemp, Warning, TEXT("A guard is missing patrol points"));
+		return false; 
+	}
+	BlackboardComp->SetValueAsObject(WaypointKey.SelectedKeyName, PatrolPoints[Index]);
+	return true;
 }
 
 void UChooseNextWaypoint::CycleIndex()
 {
-	//Increment Index
-	Index++;
-	//Modulo the index by #patrol points to cycle through them
-	Index = Index % PatrolPointsCPP.Num();
+	//Increment Index and Modulo it by #patrol points to cycle through them
+	Index = (Index + 1) % PatrolPoints.Num();
 	//Set the index in the blackboard to the output of the modulo
 	BlackboardComp->SetValueAsInt(IndexKey.SelectedKeyName, Index);
 }
